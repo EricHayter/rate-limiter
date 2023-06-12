@@ -3,22 +3,18 @@ import time
 
 
 def foo():
-    print('foo')
     return 1
 
 def main():
     rl = rate_limiter.RateLimiter(cfg='./limits.cfg')
 
+    start = time.time()
+    while rl.request_cooldown() == 0:
+        rl.request(foo)
 
-    cd = rl.request_cooldown()
-    
-    # time.sleep(cd / 1000)
-
-    print('calling foo')
-    rl.request(foo)
-    print('done calling foo')
-
+    print(start - time.time())
     rl.write_usage()
+
 
 
 if __name__ == '__main__':

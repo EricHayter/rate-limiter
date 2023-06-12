@@ -15,6 +15,7 @@ class RateLimiter:
         '''
         optional argument for the config 
         '''
+        self.usage = dict()
         # this is waiting to explode XD
         if 'cfg' not in kwargs:
             self.config = ConfigParser()
@@ -32,7 +33,7 @@ class RateLimiter:
             self.config['USAGE'] = dict()
             for param in self.config['LIMITS']:
                 if param in RateLimiter.PARAMS:
-                    self.config['USAGE'][param] = '0'
+                    self.usage[param] = 0
         else:
             if 'latest_time' not in self.config['USAGE']: # last_time not in cfg file???
                 self.latest_time = datetime.now()
@@ -40,7 +41,7 @@ class RateLimiter:
                 self.latest_time = datetime.fromisoformat(self.config['USAGE']['latest_time'])
             for key, value in self.config['USAGE'].items():
                 if key in RateLimiter.PARAMS and value.isdigit():
-                    self.config['USAGE'][key] = value
+                    self.usage[key] = int(value)
 
 
     def update_limits(self, **kwargs):
@@ -54,6 +55,8 @@ class RateLimiter:
         
     def write_usage(self, **kwargs):
         self.config['USAGE']['latest_time'] = str(self.latest_time)
+        for key, value in self.usage.items():
+            self.config['USAGE'][key] = str(value)
         with open(self.cfg_file, 'w') as configfile:
             self.config.write(configfile)
 
@@ -63,13 +66,13 @@ class RateLimiter:
         returns the amount of miliseconds until you can make another request
         '''
         for unit in self.config['LIMITS']:
-            if self.compare_time(unit) > 0:
-                print('resetting')
+            if self.is_after(unit):
+                self.reset_usage(unit)
                 return 0
             
             # this isn't a safe operation for casting
-            if int(self.config['USAGE'][unit]) >= int(self.config['LIMITS'][unit]):
-                return calculate_time(unit)
+            if self.usage[unit] >= int(self.config['LIMITS'][unit]):
+                return self.calculate_time(unit)
         
 
         return 0
@@ -78,26 +81,64 @@ class RateLimiter:
         # right time period but over limit
         # need to reset time
 
-    def compare_time(self, unit) -> int:
+    def is_after(self, unit) -> bool:
         '''
         if latest < current: reset
         if equal: compare usage and limit
         if latest > current: we have a serious issue XD (time travel technology)
         '''
+
+        # need to work down to unit
+        # this could be a class variable?;
+        uti = {
+            'year': 0,
+            'month': 1,
+            'day': 2,
+            'hour': 3,
+            'minute': 4,
+            'second': 5,
+        }
+
         latest_time = self.latest_time.timetuple()
         current_time = datetime.now().timetuple()
-        
-        if unit == 'day':
-            return latest_time.tm_mday - current_time.tm_mday
-        elif unit == 'hour':
-            return latest_time.tm_hour - current_time.tm_hour
-        elif unit == 'minute':
-            return latest_time.tm_min - current_time.tm_min
-        elif unit == 'second':
-            return latest_time.tm_sec - current_time.tm_sec
-        else:
-            raise Exception('invalid time unit given')
 
+        for i in range(uti['year'], uti[unit] + 1): # this isn't the cleanest
+            if current_time[i] < latest_time[i]:
+                return False
+        else: # might be off by 1
+            if current_time[i] == latest_time[i]:
+                return False
+
+        # edge case if they are equal
+
+        return True
+
+    def reset_usage(self, unit):
+        uti = {
+            'year': 0,
+            'month': 1,
+            'day': 2,
+            'hour': 3,
+            'minute': 4,
+            'second': 5,
+        }
+        
+        # chane this code to use params
+        itu = {
+            0: 'year',
+            1: 'month',
+            2: 'day',
+            3: 'hour',
+            4: 'minute',
+            5: 'second',
+
+        }
+
+        for i in range(uti[unit], uti['second'] + 1):
+            if itu[i] in self.usage:
+                self.usage[itu[i]] = 0
+
+        
 
     def calculate_time(self, unit):
         delta_time = self.latest_time - datetime.now() # difference from latest time and current time
@@ -109,9 +150,8 @@ class RateLimiter:
         ''' returning the value'''
         try:
             func()
-            for key, value in self.config['USAGE'].items():
-                if isinstance(value, int):
-                    self.config['USAGE'] = key + 1
+            for unit in self.usage:
+                self.usage[unit] += 1
             self.latest_time = datetime.now()
         except Exception as e:
             self.write_usage()
