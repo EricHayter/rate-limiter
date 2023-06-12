@@ -2,8 +2,8 @@ import rate_limiter
 import time
 
 
-@rate_limiter.request
 def foo():
+    print('foo')
     return 1
 
 def main():
@@ -11,10 +11,12 @@ def main():
 
 
     cd = rl.request_cooldown()
-    print(cd)
-    time.sleep(cd / 1000)
+    
+    # time.sleep(cd / 1000)
 
-    foo()
+    print('calling foo')
+    rl.request(foo)
+    print('done calling foo')
 
     rl.write_usage()
 

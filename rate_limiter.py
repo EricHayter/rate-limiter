@@ -6,6 +6,7 @@ from datetime import datetime
 - rate limit dunder class
 - saving used 
 - logfile for errors (prob not)
+- latest time isn't being saved correctly
 '''
 
 class RateLimiter:
@@ -14,6 +15,7 @@ class RateLimiter:
         '''
         optional argument for the config 
         '''
+        # this is waiting to explode XD
         if 'cfg' not in kwargs:
             self.config = ConfigParser()
             self.latest_time = datetime.now()
@@ -27,18 +29,18 @@ class RateLimiter:
 
         if 'USAGE' not in self.config.sections():
             self.latest_time = datetime.now()
+            self.config['USAGE'] = dict()
             for param in self.config['LIMITS']:
-                self.config['USAGE'] = dict()
-                if param in RateLimiter.PARAMS and param in self.config['LIMITS']:
+                if param in RateLimiter.PARAMS:
                     self.config['USAGE'][param] = '0'
         else:
-            if 'last_time' not in self.config['USAGE']: # should I even worry about this edge case?
+            if 'latest_time' not in self.config['USAGE']: # last_time not in cfg file???
                 self.latest_time = datetime.now()
             else:
-                self.latest_time = datetime.fromisoformat(self.config['USAGE']['last_time'])
+                self.latest_time = datetime.fromisoformat(self.config['USAGE']['latest_time'])
             for key, value in self.config['USAGE'].items():
-                if param in RateLimiter.PARAMS and value.isdigit():
-                    self.config['USAGE'][key] = int(value)
+                if key in RateLimiter.PARAMS and value.isdigit():
+                    self.config['USAGE'][key] = value
 
 
     def update_limits(self, **kwargs):
@@ -51,7 +53,8 @@ class RateLimiter:
 
         
     def write_usage(self, **kwargs):
-        with open(cfg_file, 'w') as configfile:
+        self.config['USAGE']['latest_time'] = str(self.latest_time)
+        with open(self.cfg_file, 'w') as configfile:
             self.config.write(configfile)
 
                 
@@ -59,19 +62,13 @@ class RateLimiter:
         '''
         returns the amount of miliseconds until you can make another request
         '''
-
-        # where does the resetting of usage come from?
-
-
         for unit in self.config['LIMITS']:
-        # need to check time before even checking limits and usages
             if self.compare_time(unit) > 0:
                 print('resetting')
-                # reset the usage up to that unit
                 return 0
             
-
-            if self.config['USAGE'][unit] >= self.config['LIMIT'][unit]:
+            # this isn't a safe operation for casting
+            if int(self.config['USAGE'][unit]) >= int(self.config['LIMITS'][unit]):
                 return calculate_time(unit)
         
 
@@ -105,20 +102,18 @@ class RateLimiter:
     def calculate_time(self, unit):
         delta_time = self.latest_time - datetime.now() # difference from latest time and current time
         
-        pass
+        return 1000
 
-    # this is going to be the decorator
-    # wrap function in try catch
-    # if the request goes through add + 1 to each of the usage params in config
-def request(func):
-    def call(self, *args, **kwargs):
+
+    def request(self, func):
+        ''' returning the value'''
         try:
             func()
             for key, value in self.config['USAGE'].items():
                 if isinstance(value, int):
                     self.config['USAGE'] = key + 1
             self.latest_time = datetime.now()
-        except e:
+        except Exception as e:
             self.write_usage()
-            yield e
-    return call
+            raise e
+
