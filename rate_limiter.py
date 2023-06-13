@@ -1,16 +1,18 @@
 from configparser import ConfigParser
-from datetime import datetime
+from datetime import datetime, timedelta
+
 
 '''
-- creating configuration files
-- rate limit dunder class
-- saving used 
 - logfile for errors (prob not)
-- latest time isn't being saved correctly
+- calculate time needs to be finished
+- clean up (think the dictionaries in functions)
+- BIG PROBLEM XD:
+    usage isn't resetting correctly
+    run a sim after cd is issued only 1 request is made
 '''
 
 class RateLimiter:
-    PARAMS = ['day', 'hour', 'minute', 'second']
+    PARAMS = ['year', 'month', 'day', 'hour', 'minute', 'second']
     def __init__(self, **kwargs):
         '''
         optional argument for the config 
@@ -103,6 +105,7 @@ class RateLimiter:
         current_time = datetime.now().timetuple()
 
         for i in range(uti['year'], uti[unit] + 1): # this isn't the cleanest
+        #for curr, prev in zip(datetime.now().timetuple(), self.latest_time.timetuple()):
             if current_time[i] < latest_time[i]:
                 return False
         else: # might be off by 1
@@ -141,9 +144,33 @@ class RateLimiter:
         
 
     def calculate_time(self, unit):
-        delta_time = self.latest_time - datetime.now() # difference from latest time and current time
-        
-        return 1000
+        uti = {
+            'year': 0,
+            'month': 1,
+            'day': 2,
+            'hour': 3,
+            'minute': 4,
+            'second': 5,
+        }
+
+        next_unit = [*datetime.min.timetuple()][:6] # placeholder datetime obj 
+        for i in range(uti[unit] + 1): # this is pretty ugly
+            next_unit[i] = self.latest_time.timetuple()[i]
+        next_time = datetime(*next_unit) # this too might look to change it later
+        if unit == 'year':
+            next_time += timedelta(years=1)
+        elif unit == 'month':
+            next_time += timedelta(months=1)
+        elif unit == 'day':
+            next_time += timedelta(days=1)
+        elif unit == 'hour':
+            next_time += timedelta(hours=1)
+        elif unit == 'minute':
+            next_time += timedelta(minutes=1)
+        elif unit == 'hour':
+            next_time += timedelta(seconds=1)
+
+        return (next_time - self.latest_time).total_seconds()
 
 
     def request(self, func):
